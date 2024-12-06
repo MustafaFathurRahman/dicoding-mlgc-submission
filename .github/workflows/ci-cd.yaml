@@ -1,24 +1,50 @@
-name: Build, Push, and Deploy to Cloud Run
+name: Build and Deploy to Cloud Run
 
 on:
   push:
     branches:
-      - main  # Sesuaikan dengan branch Anda
+      - main
+  workflow_dispatch:
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write"
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v2
 
-    - name: Set up Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v0.9  # Update versi di sini
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
       with:
-        version: '395.0.0'
+        node-version: 18.16
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Install @tensorflow/tfjs-node
+      run: npm install @tensorflow/tfjs-node@3.21.1
+
+    - name: Google Auth
+      uses: "google-github-actions/auth@v1"
+      with:
+        credentials_json: "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}"
+
+    - name: Set up Cloud SDK
+      uses: "google-github-actions/setup-gcloud@v1"
+      with:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
-        credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+    - name: Set up environment variables
+      run: |
+        echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > bucket_service_key.json
+        echo '${{ secrets.GCP_STORAGE_KEY }}' > storage_key.json  # Store storage.json key as file
+
+    - name: Authenticate Docker with GCP
+      run: gcloud auth configure-docker
 
     - name: Configure Docker to use Artifact Registry
       run: |
@@ -32,33 +58,13 @@ jobs:
       run: |
         docker push asia-southeast2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc:latest
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-
-    steps:
-    - name: Set up Google Cloud SDK
-      uses: google-github-actions/setup-gcloud@v0.9  # Update versi di sini
-      with:
-        version: '395.0.0'
-        project_id: ${{ secrets.GCP_PROJECT_ID }}
-        credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy submission-mlgc \
-          --image=asia-southeast2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc:latest \
-          --region=asia-southeast2 \
+          --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc \
+          --region=${{ secrets.GCP_REGION }} \
           --platform=managed \
           --allow-unauthenticated \
           --service-account=${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }} \
           --set-env-vars MODEL_URL=${{ secrets.MODEL_URL }} \
-          --set-env-vars STORAGE_KEY_PATH=/workspace/storage_key.json \
-          --port=8080  # Pastikan aplikasi mendengarkan pada port 8080
-          
-    - name: Set up Cloud Run IAM Policy
-      run: |
-        gcloud run services add-iam-policy-binding submission-mlgc \
-          --member="allUsers" \
-          --role="roles/run.invoker" \
-          --region=asia-southeast2
+          --set-env-vars STORAGE_KEY_PATH=/workspace/storage_key.json  # Pass storage key path as env variable
