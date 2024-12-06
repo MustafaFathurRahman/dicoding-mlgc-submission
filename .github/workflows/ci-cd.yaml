@@ -1,54 +1,63 @@
-name: Deploy to Cloud Run
+name: Build and Deploy to Cloud Run
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  build_and_deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: "read"
+      id-token: "write"
+
     steps:
-      # Checkout repository
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      # Setup Node.js
-      - name: Set up Node.js
-        uses: actions/setup-node@v2
-        with:
-          node-version: '18'
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+      with:
+        node-version: 18.16
 
-      # Setup gcloud CLI
-      - name: Setup gcloud CLI
-        run: |
-          curl https://sdk.cloud.google.com | bash
-          source $HOME/google-cloud-sdk/path.bash.inc
-          gcloud components update
+    - name: Install dependencies
+      run: npm install
 
-      # Build Docker image
-      - name: Build Docker image
-        run: |
-          docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/dicoding-mlgc-submission:latest .
+    - name: Install @tensorflow/tfjs-node
+      run: npm install @tensorflow/tfjs-node@3.21.1
 
-      # Check Docker version
-      - name: Check Docker Version
-        run: docker --version
+    - name: Google Auth
+      uses: "google-github-actions/auth@v1"
+      with:
+        credentials_json: "${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}"
 
-      # Authenticate and push Docker image to GCR
-      - name: Authenticate and push Docker image to GCR
-        run: |
-          echo "Authenticating with Google Cloud..."
-          echo "${{ secrets.GCP_KEY }}" | gcloud auth activate-service-account --key-file=- --verbosity debug
-          gcloud auth configure-docker --verbosity debug
-          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/dicoding-mlgc-submission:latest
+    - name: Set up Cloud SDK
+      uses: "google-github-actions/setup-gcloud@v1"
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
 
-      # Deploy to Cloud Run
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy dicoding-mlgc-submission \
-            --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/dicoding-mlgc-submission:latest \
-            --platform managed \
-            --region us-central1 \
-            --allow-unauthenticated \
-            --port 8080
+    - name: Set up environment variables
+      run: |
+        echo '${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}' > bucket_service_key.json
+        echo '${{ secrets.GCP_STORAGE_KEY }}' > storage_key.json  # Store storage.json key as file
+
+    - name: Authenticate Docker with GCP
+      run: gcloud auth configure-docker
+
+    - name: Build and push Docker image
+      run: |
+        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc .
+        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy submission-mlgc \
+          --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc \
+          --region=${{ secrets.GCP_REGION }} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --service-account=${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }} \
+          --set-env-vars MODEL_URL=${{ secrets.MODEL_URL }} \
+          --set-env-vars STORAGE_KEY_PATH=/workspace/storage_key.json  # Pass storage key path as env variable
