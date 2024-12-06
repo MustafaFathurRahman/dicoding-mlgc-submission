@@ -19,11 +19,6 @@ jobs:
         with:
           node-version: '18'
 
-      # Debug: print GCP_PROJECT_ID
-      - name: Debug GCP_PROJECT_ID
-        run: |
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}"
-
       # Setup gcloud CLI
       - name: Setup gcloud CLI
         run: |
@@ -36,15 +31,15 @@ jobs:
         run: |
           docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/dicoding-mlgc-submission:latest .
 
-      # Debug: Check Docker version
+      # Check Docker version
       - name: Check Docker Version
         run: docker --version
 
-      # Push Docker image to GCR
-      - name: Push Docker image to GCR
+      # Authenticate and push Docker image to GCR
+      - name: Authenticate and push Docker image to GCR
         run: |
           echo "Authenticating with Google Cloud..."
-          echo ${{ secrets.GCP_KEY }} | gcloud auth activate-service-account --key-file=- --verbosity debug
+          echo "${{ secrets.GCP_KEY }}" | gcloud auth activate-service-account --key-file=- --verbosity debug
           gcloud auth configure-docker --verbosity debug
           docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/dicoding-mlgc-submission:latest
 
