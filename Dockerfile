@@ -1,14 +1,27 @@
-FROM node:18.16
+# Menggunakan Node.js 18 sebagai base image
+FROM node:18
+
+# Set working directory di dalam container
 WORKDIR /usr/src/app
+
+# Menyalin file package.json dan package-lock.json ke dalam container
 COPY package*.json ./
+
+# Install dependencies
 RUN npm install
-RUN npm install @tensorflow/tfjs-node@3.21.1
+
+# Menyalin seluruh file aplikasi ke dalam container
 COPY . .
 
-# Buat direktori credentials dan set permissions
-RUN mkdir -p /usr/src/app/credentials
-COPY bucket_service_key.json /usr/src/app/credentials/
-ENV GOOGLE_APPLICATION_CREDENTIALS=/usr/src/app/credentials/bucket_service_key.json
+# Menyediakan environment variable yang diperlukan
+# Mengatur variabel untuk Cloud Storage dan Firestore yang akan dibaca dari file .env
+ENV PORT=8080
+ENV MODEL_URL=https://storage.googleapis.com/submissionmlgc-mustafa-model/submissions-model/model.json
+ENV GCP_PROJECT_ID=submissionmlgc-mustafa
+ENV GCP_STORAGE_SERVICE=/path/to/storage.json
 
+# Ekspos port yang digunakan oleh aplikasi
 EXPOSE 8080
-CMD ["node", "src/server/server.js"]
+
+# Menjalankan aplikasi Node.js menggunakan perintah yang sesuai
+CMD ["npm", "start"]
