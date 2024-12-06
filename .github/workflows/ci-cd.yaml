@@ -13,27 +13,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Debug: print GCP_PROJECT_ID
-      - name: Debug GCP_PROJECT_ID
-        run: |
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}"
-      
-      # Set up Node.js 18
+      # Setup Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
           node-version: '18'
+
+      # Debug: print GCP_PROJECT_ID
+      - name: Debug GCP_PROJECT_ID
+        run: |
+          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}"
+
+      # Setup gcloud CLI
+      - name: Setup gcloud CLI
+        run: |
+          curl https://sdk.cloud.google.com | bash
+          source $HOME/google-cloud-sdk/path.bash.inc
+          gcloud components update
 
       # Build Docker image
       - name: Build Docker image
         run: |
           docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/dicoding-mlgc-submission:latest .
 
+      # Debug: Check Docker version
+      - name: Check Docker Version
+        run: docker --version
+
       # Push Docker image to GCR
       - name: Push Docker image to GCR
         run: |
-          echo ${{ secrets.GCP_KEY }} | gcloud auth activate-service-account --key-file=-
-          gcloud auth configure-docker
+          echo "Authenticating with Google Cloud..."
+          echo ${{ secrets.GCP_KEY }} | gcloud auth activate-service-account --key-file=- --verbosity debug
+          gcloud auth configure-docker --verbosity debug
           docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/dicoding-mlgc-submission:latest
 
       # Deploy to Cloud Run
