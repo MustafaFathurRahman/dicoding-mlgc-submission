@@ -44,7 +44,9 @@ jobs:
         echo '${{ secrets.GCP_STORAGE_KEY }}' > storage_key.json  # Store storage.json key as file
 
     - name: Authenticate Docker with GCP
-      run: gcloud auth configure-docker
+      run: |
+        gcloud auth configure-docker
+        docker info  # Verifikasi bahwa Docker dapat terhubung ke GCP
 
     - name: Configure Docker to use Artifact Registry
       run: |
@@ -56,12 +58,12 @@ jobs:
 
     - name: Push Docker Image to Artifact Registry
       run: |
-        docker push asia-southeast2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc:latest
+        docker push --disable-content-trust asia-southeast2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc:latest
 
     - name: Deploy to Cloud Run
       run: |
         gcloud run deploy submission-mlgc \
-          --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc \
+          --image=asia-southeast2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/submission-mlgc:latest \
           --region=${{ secrets.GCP_REGION }} \
           --platform=managed \
           --allow-unauthenticated \
