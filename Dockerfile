@@ -1,27 +1,25 @@
-# Menggunakan Node.js 18 sebagai base image
-FROM node:18
+# Gunakan image dasar Node.js
+FROM node:18-slim
 
-# Set working directory di dalam container
-WORKDIR /usr/src/app
+# Tentukan direktori kerja di dalam container
+WORKDIR /app
 
-# Menyalin file package.json dan package-lock.json ke dalam container
+# Salin package.json dan package-lock.json untuk instalasi dependensi
 COPY package*.json ./
 
 # Install dependencies
 RUN npm install
 
-# Menyalin seluruh file aplikasi ke dalam container
+# Salin seluruh aplikasi ke dalam container
 COPY . .
 
-# Menyediakan environment variable yang diperlukan
-# Mengatur variabel untuk Cloud Storage dan Firestore yang akan dibaca dari file .env
+# Tentukan variabel lingkungan
 ENV PORT=8080
-ENV MODEL_URL=https://storage.googleapis.com/submissionmlgc-mustafa-model/submissions-model/model.json
-ENV GCP_PROJECT_ID=submissionmlgc-mustafa
-ENV GCP_STORAGE_SERVICE=/path/to/storage.json
+ENV MODEL_URL=${MODEL_URL} 
+ENV GOOGLE_APPLICATION_CREDENTIALS=/path/to/storage_service_key.json 
 
-# Ekspos port yang digunakan oleh aplikasi
-EXPOSE 8080
+# Menyalin kredensial storage.json dari GitHub secrets (via GitHub Actions)
+COPY bucket_service_key.json /path/to/storage_service_key.json
 
-# Menjalankan aplikasi Node.js menggunakan perintah yang sesuai
-CMD ["npm", "start"]
+# Tentukan perintah untuk menjalankan aplikasi
+CMD ["node", "index.js"]
